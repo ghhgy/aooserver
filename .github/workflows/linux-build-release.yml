@@ -1,0 +1,96 @@
+name: Build and Release (C++)
+
+on:
+  create:
+    tags:
+      - 'v*'
+
+jobs:
+  build-x86_64:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: true   # 包含 deps/aoo
+
+      - name: Install dependencies
+        run: |
+          # 更新软件包列表
+          sudo apt update
+          # 安装构建工具，包括 make、gcc 等
+          sudo apt install -y build-essential
+          sudo apt install -y libcurl4-openssl-dev
+          sudo apt install -y pkg-config
+
+      - name: Build
+        run: |
+          cd Builds/LinuxMakefile
+          CONFIG=Release make
+          # 构建后 binary 在 Builds/LinuxMakefile/build/aooserver
+          mkdir -p ../../build
+          cp build/aooserver ../../build/aooserver-linux-x86_64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aooserver-linux-x86_64
+          path: build/aooserver-linux-x86_64
+
+  build-arm64:
+    name: Build Linux (ARM64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: true   # 包含 deps/aoo
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build in ARM64 container
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ubuntu:22.04 bash -c "
+              apt update && \
+              apt install -y build-essential libcurl4-openssl-dev pkg-config && \
+              cd Builds/LinuxMakefile && \
+              CONFIG=Release make && \
+              mkdir -p ../../build && \
+              cp build/aooserver ../../build/aooserver-linux-arm64
+            "
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aooserver-linux-arm64
+          path: build/aooserver-linux-arm64
+
+  release:
+    name: Create GitHub Release
+    needs: [build-x86_64, build-arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            artifacts/aooserver-linux-x86_64/aooserver-linux-x86_64
+            artifacts/aooserver-linux-arm64/aooserver-linux-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
