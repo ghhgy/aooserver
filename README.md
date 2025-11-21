@@ -1,3 +1,16 @@
+```bash
+# 更新软件包列表
+# Update the package list
+apt update
+
+# 安装构建工具，包括 make、gcc 等
+# Install build tools, including make, gcc, etc.
+apt install -y build-essential libcurl4-openssl-dev pkg-config
+
+cd Builds/LinuxMakefile
+CONFIG=Release make
+```
+
 This is the standalone connection server for use with SonoBus which uses AOO.
 
 SonoBus can be found on github at https://github.com/essej/sonobus, or its
